@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Игра "Крестики-нолики"</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css"/> <!--здесь ссылка на какие-то иконки.-->
+</head>
+<body>
+   <!-- select box -->
+    <div class="select-box">
+        <header>Крестики-нолики</header>
+        <div class="content">
+            <div class="title">Выбери роль</div>
+            <div class="options">
+                <button class="playerX">Крестики</button>
+                <button class="playerO">Нолики</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- playboard section -->
+     <div class="play-board">
+        <div class="details">
+            <div class="players">
+                <span class="Xturn">Игрок X</span>
+                <span class="Oturn">Игрок O</span>
+                <div class="slider"></div>
+            </div>
+        </div>
+        <div class="play-area">
+            <section>
+                <span class="box1"></span>
+                <span class="box2"></span>
+                <span class="box3"></span>
+            </section>
+            <section>
+                <span class="box4"></span>
+                <span class="box5"></span>
+                <span class="box6"></span>
+            </section>
+            <section>
+                <span class="box7"></span>
+                <span class="box8"></span>
+                <span class="box9"></span>
+            </section>
+        </div>
+     </div>
+
+     <!-- result box -->
+      <div class="result-box">
+        <div class="won-text">Игрок <p>X</p> победил!</div>
+        <div class="btn">
+            <button>Сыграть еще раз</button>
+        </div>
+      </div>
+
+      <script src="script.js"></script>
+</body>
+</html>
