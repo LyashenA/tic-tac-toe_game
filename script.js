@@ -1,155 +1,164 @@
-// selecting all required elements
-const selectBox = document.querySelector('.select-box'), // Перечисление конст через запятую? Это легально?
-selectXBtn = selectBox.querySelector('.playerX'),
-selectOBtn = selectBox.querySelector('.playerO'),
-playBoard = document.querySelector('.play-board'),
-allBox = document.querySelectorAll('section span'),
-players = document.querySelector('.players'),
-resultBox = document.querySelector('.result-box'),
-wonText = resultBox.querySelector('.won-text'),
-replayBtn = resultBox.querySelector('button');
+/* ---------- DOM ---------- */
+const selectBox  = document.querySelector('.select-box');
+const playBoard  = document.querySelector('.play-board');
+const cells      = [...document.querySelectorAll('[data-cell]')];
+const playersBar = document.querySelector('.players');
+const resultBox  = document.querySelector('.result-box');
+const wonText    = resultBox.querySelector('.won-text');
+const slider = document.querySelector('.players .slider');
 
-let playerXIcon = 'fas fa-times'; //class name of fontawesome cross icon
-let playerOIcon = 'far fa-circle'; //class name of fontawesome circle icon
-let playerSign = 'X'; //suppose player will be X
-let runBot = true;
+/* ---------- Константы ---------- */
+const ICON = { X: 'fas fa-times', O: 'far fa-circle' };
+const WINS = [
+  [0,1,2],[3,4,5],[6,7,8],
+  [0,3,6],[1,4,7],[2,5,8],
+  [0,4,8],[2,4,6]
+];
 
-window.onload = () => { //once window loaded и узнай, что такое window.onload
-    for (let i = 0; i < allBox.length; i++) { //add onclick attribute in all avaiable section's spans 
-        allBox[i].setAttribute('onclick', 'clickedBox(this)'); //Что значит второй аргумент и зачем эта строка здесь нужна?
-    }
-    
-    selectXBtn.onclick = () => { // Почему .onclick а не ивент листнер?
-        selectBox.classList.add('hide'); //hide the select box on playerX button clicked
-        playBoard.classList.add('show'); //show the playboard section on playerX button clicked
-    };
+/* ---------- Состояние партии ---------- */
+let board, human, bot, running;
 
-    selectOBtn.onclick = () => { // Почему .onclick а не ивент листнер?
-        selectBox.classList.add('hide'); //hide the select box on playerO button clicked
-        playBoard.classList.add('show'); //show the playboard section on playerO button clicked
-        players.setAttribute('class', 'players active player'); //adding three class name in player element
-    };
+/* ---------- Вспомогательные ---------- */
+const winner = (b,s) => WINS.some(w => w.every(i => b[i] === s));
+const empty  = b => b.reduce((a,_,i)=> b[i]===''? a.concat(i):a,[]);
+
+function updateTurnIndicator(next){
+  /* .active = сейчас ход O (ползунок вправо) */
+  playersBar.classList.toggle('active', next === 'O');
 }
 
-// user click function
-function clickedBox(element) {
-    if (players.classList.contains('player')) { //if players element has contains .player
-        element.innerHTML = `<i class="${playerOIcon}"></i>`; //adding circle icon tag inside user clicked element
-        players.classList.remove('active');
-        // if player select O then we'll change the playerSign value to O
-        playerSign = 'O';
-        element.setAttribute('id', playerSign);
-    } else {
-        element.innerHTML = `<i class="${playerXIcon}"></i>`; //adding cross icon tag inside user clicked element
-        players.classList.add('active');
-        element.setAttribute('id', playerSign);
-    }
-
-    selectWinner(); // calling the winner function
-    playBoard.style.pointerEvents = 'none'; // once user select then user can't select any other box until box select
-
-    element.style.pointerEvents = 'none'; //once user select any box then that box can't be select again
-    
-    let randomDelayTime = ((Math.random() * 1000) + 200).toFixed(); //generating random time delay so bot will delay randomly to select box
-    
-    setTimeout(() => {
-        bot(runBot); // calling bot function
-    }, randomDelayTime); // passing random delay time
+function score(b,d){
+  if (winner(b,bot))   return 10 - d;
+  if (winner(b,human)) return d - 10;
+  return 0;
 }
 
-// bot click function
-function bot(runBot) {
-    if (runBot) { //if runBot is true then run the following codes
-        // first change the playerSign... so if user has X value in id then bot will have O
-        playerSign = 'O';
-        let array = []; //creating empty array...we'll store unselected box index in this array
-        for (let i = 0; i < allBox.length; i++) {
-            if (allBox[i].childElementCount == 0) { //if span has no any child element
-                array.push(i); // inserting unclicked or unselected boxes inside array means that span has no children
-            } 
-        }
-    
-        let randomBox = array[Math.floor(Math.random() * array.length)]; //getting random index from array so bot will select random unselected box
-    
-        if (array.length > 0) {
-            if (players.classList.contains('player')) { //if players element has contains .player
-                allBox[randomBox].innerHTML = `<i class="${playerXIcon}"></i>`; //adding cross icon tag inside user clicked element
-                players.classList.add('active');
-                // if user is O then the box id value will be X
-                playerSign = 'X';
-                allBox[randomBox].setAttribute('id', playerSign);
-            } else {
-                allBox[randomBox].innerHTML = `<i class="${playerOIcon}"></i>`; //adding circle icon tag inside user clicked element
-                players.classList.remove('active');
-                allBox[randomBox].setAttribute('id', playerSign);
-            }
+// функция помогает установить ползунок в новое значение без перехода
+function setInitialIndicator(isO){
+  /* 1. временно убираем переход */
+  slider.style.transition = 'none';
 
-            selectWinner(); // calling the winner function
-        }
+  /* 2. ставим нужный класс */
+  playersBar.className = isO ? 'players active player' : 'players';
 
-        allBox[randomBox].style.pointerEvents = 'none'; // once bot select any box then user can't select or click on that box
-        playBoard.style.pointerEvents = 'auto';
-        playerSign = 'X'; //passing the x value
-    }
+  /* 3. вернём transition после того,
+        как браузер нарисует новое положение   */
+  requestAnimationFrame(() => {
+    slider.style.transition = '';   // пустая строка = вернуться к CSS
+  });
 }
 
-// let work on select the winner
-function getClass(idName) {
-    return document.querySelector(`.box${idName}`).id; //returning id name
+/* ---------- Минимакс ---------- */
+function minimax(b, turn, d = 0){
+  if (winner(b,bot) || winner(b,human) || !b.includes(''))
+    return { score: score(b,d) };
+
+  let best = { score: turn===bot ? -Infinity : Infinity };
+
+  for (const i of empty(b)){
+    b[i] = turn;
+    const { score } = minimax(b, turn===bot? human: bot, d+1);
+    b[i] = '';
+
+    const better = turn===bot ? score > best.score : score < best.score;
+    if (better) best = { score, move: i };
+  }
+  return best;
 }
 
-function checkClass(val1, val2, val3, sign) {
-    if (getClass(val1)  == sign && getClass(val2) == sign && getClass(val3) == sign) {
-        return true;
-    }
+/* ---------- Ходы ---------- */
+function place(idx, sign, animate = true){
+  board[idx] = sign;
+  const cell = cells[idx];
+  cell.style.pointerEvents = 'none';
+
+  const icon = document.createElement('i');
+  icon.className = ICON[sign];
+  if (animate){
+    icon.style.transform  = 'scale(0)';
+    icon.style.transition = 'transform .25s ease';
+    requestAnimationFrame(()=> icon.style.transform = 'scale(1)');
+  }
+  cell.appendChild(icon);
+
+  updateTurnIndicator(sign === 'X' ? 'O' : 'X');
 }
 
-function selectWinner() { // if one combination of them matched then select the winner
-    if (checkClass(1, 2, 3, playerSign) 
-        || checkClass(4, 5, 6, playerSign)
-        || checkClass(7, 8, 9, playerSign)
-        || checkClass(1, 4, 7, playerSign)
-        || checkClass(2, 5, 8, playerSign)
-        || checkClass(3, 6, 9, playerSign)
-        || checkClass(1, 5, 9, playerSign)
-        || checkClass(3, 5, 7, playerSign)) {
-        // once match won by someone then stop the bot
-        runBot = false;
-        bot(runBot);
-        setTimeout(() => { //we'll delay to show result box
-            playBoard.classList.remove('show');
-            resultBox.classList.add('show');
-        }, 700); //700 ms delay
-
-        if (playerSign === 'X') {
-            wonText.textContent = 'Крестики победили!';
-        } else {
-            wonText.textContent = 'Нолики победили!';
-        }
-    } else {
-        // if match has drawn
-        // first we'll check all id... if all span has id and no one won the game then we'll draw the game
-        if (getClass(1) != '' 
-            && getClass(2) != '' 
-            && getClass(3) != ''
-            && getClass(4) != ''
-            && getClass(5) != ''
-            && getClass(6) != ''
-            && getClass(7) != ''
-            && getClass(8) != ''
-            && getClass(9) != '') {
-            runBot = false;
-            bot(runBot);
-            setTimeout(() => { //we'll delay to show result box
-                playBoard.classList.remove('show');
-                resultBox.classList.add('show');
-            }, 700); //700 ms delay
-
-            wonText.textContent = `Ничья! Конец партии.`;
-        }
-    }
+function botMove(){
+  if (!running) return;
+  const { move } = minimax([...board], bot);
+  const delay = Math.floor(Math.random()*800) + 200; // 200‑1000 мс
+  setTimeout(()=>{
+    place(move, bot);
+    checkGame();
+  }, delay);
 }
 
-replayBtn.onclick = () => {
-    window.location.reload(); //reload the current page
+function playerMove(e){
+  if (!running) return;
+  const idx = +e.currentTarget.dataset.cell;
+  if (board[idx] !== '') return;
+  place(idx, human);
+  checkGame();
+  if (running) botMove();
 }
+
+/* ---------- Конец партии ---------- */
+function showResult(type, sign = ''){
+  running = false;
+  wonText.textContent =
+    type === 'draw'
+      ? 'Ничья!'
+      : `${sign === 'X' ? 'Крестики' : 'Нолики'} победили!`;
+  setTimeout(() => {
+    playBoard.classList.remove('show');
+    resultBox.classList.add('show');
+  }, 600);
+}
+
+function checkGame(){
+  if (winner(board,human)) showResult('win', human);
+  else if (winner(board,bot)) showResult('win', bot);
+  else if (!board.includes('')) showResult('draw');
+}
+
+/* ---------- Запуск партии ---------- */
+function startGame(humanSign){
+  board   = Array(9).fill('');
+  human   = humanSign;
+  bot     = human === 'X' ? 'O' : 'X';
+  running = true;
+
+  cells.forEach(c=>{
+    c.innerHTML = '';
+    c.style.pointerEvents = 'auto';
+  });
+
+  /* Индикатор ставим на того, кто ХОДИТ СЕЙЧАС — это человек */
+  updateTurnIndicator(human);
+
+  /* Бот НЕ делает стартовый ход — ждёт, пока сыграет человек */
+}
+
+/* ---------- UI ---------- */
+window.addEventListener('load', () => {
+    /* --- игрок выбирает X --- */
+    document.querySelector('.playerX').addEventListener('click', () => {
+        setInitialIndicator(false);            // сразу левое положение
+        selectBox.classList.add('hide');
+        playBoard.classList.add('show');
+        startGame('X');
+    });
+
+    /* --- игрок выбирает O --- */
+    document.querySelector('.playerO').addEventListener('click', () => {
+        setInitialIndicator(true);             // сразу правое положение
+        selectBox.classList.add('hide');
+        playBoard.classList.add('show');
+        startGame('O');
+    });
+
+    cells.forEach(c => c.addEventListener('click', playerMove));
+    document.querySelector('.result-box button')
+        .addEventListener('click', () => location.reload());
+});
